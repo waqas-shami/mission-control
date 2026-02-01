@@ -67,10 +67,8 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
 
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.9 : 1,
     cursor: 'grab',
-    zIndex: isDragging ? 1000 : 1,
-    position: 'relative' as const,
   };
 
   return (
@@ -83,7 +81,6 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
       radius="md"
       withBorder
       mb="xs"
-      shadow={isDragging ? 'xl' : 'xs'}
       className="kanban-card"
     >
       <Group justify="space-between" mb="xs">
@@ -166,8 +163,8 @@ function KanbanColumn({
       ref={setNodeRef}
       style={{
         minHeight: 400,
-        backgroundColor: isOver ? 'var(--mantine-color-dark-5)' : 'transparent',
-        border: isOver ? '2px dashed var(--mantine-color-blue-4)' : '1px solid var(--mantine-color-dark-4)',
+        backgroundColor: isOver ? 'var(--mantine-color-gray-1)' : 'transparent',
+        border: isOver ? '2px dashed var(--mantine-color-blue-5)' : '1px solid var(--mantine-color-dark-3)',
         borderRadius: 'var(--mantine-radius-md)',
         padding: '8px',
         transition: 'background-color 0.15s ease, border-color 0.15s ease',
@@ -345,12 +342,12 @@ export function KanbanBoard() {
             message: `"${activeTask.title}" moved to ${targetColumn.title}`,
             color: 'green',
           });
-        } catch (error: any) {
+        } catch (error) {
           console.error('Failed to move task:', error);
           fetchTasks();
           notifications.show({
             title: 'Error',
-            message: error.message || 'Failed to move task',
+            message: error instanceof Error ? error.message : 'Failed to move task',
             color: 'red',
           });
         }
@@ -450,9 +447,13 @@ export function KanbanBoard() {
         notifications.show({ title: 'Task created', message: 'New task added to the board', color: 'green' });
       }
       closeModal();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to save task:', error);
-      notifications.show({ title: 'Error', message: error.message || 'Failed to save task', color: 'red' });
+      notifications.show({ 
+        title: 'Error', 
+        message: error instanceof Error ? error.message : 'Failed to save task', 
+        color: 'red' 
+      });
     }
   };
 
@@ -470,11 +471,11 @@ export function KanbanBoard() {
       >
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(180px, 1fr))`, 
-          gap: '12px',
-          overflowX: 'hidden',
+          gridTemplateColumns: 'repeat(5, 1fr)', 
+          gap: '8px',
           paddingBottom: '16px',
           width: '100%',
+          overflowX: 'hidden',
         }}>
           {COLUMNS.map((column) => (
             <KanbanColumn
@@ -493,11 +494,10 @@ export function KanbanBoard() {
             <Paper 
               p="sm" 
               radius="md" 
-              withBorder 
-              shadow="xl"
+              withBorder
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                maxWidth: 200,
+                opacity: 0.95,
               }}
             >
               <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light" mb="xs">

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     let sql = 'SELECT * FROM tasks';
-    const params: any[] = [];
+    const params: string[] = [];
     
     if (columnId) {
       sql += ' WHERE column_id = $1';
@@ -82,7 +82,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate and build the update object
-    const updateFields: Record<string, any> = {};
+    const updateFields: Record<string, string | boolean | string[]> = {};
     
     // Handle column_id separately with validation
     if (column_id !== undefined) {
@@ -107,13 +107,14 @@ export async function PATCH(request: NextRequest) {
 
     // Build SET clause
     const setClauses: string[] = [];
-    const values: any[] = [];
+    const values: (string | boolean | string[])[] = [];
     let paramIndex = 1;
 
     Object.entries(updateFields).forEach(([key, value]) => {
       setClauses.push(`${key} = $${paramIndex}`);
       if (key === 'tags') {
-        values.push(JSON.stringify(value));
+        // PostgreSQL TEXT[] expects array format like {tag1,tag2} or use parameterized query
+        values.push(value);
       } else {
         values.push(value);
       }
