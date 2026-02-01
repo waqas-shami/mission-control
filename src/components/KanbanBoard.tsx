@@ -31,7 +31,6 @@ import {
   useDroppable
 } from '@dnd-kit/core';
 import { 
-  arrayMove, 
   SortableContext, 
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
@@ -49,6 +48,7 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import type { Task, TaskColumn } from '@/types';
+import { io, Socket } from 'socket.io-client';
 
 const COLUMNS: { id: TaskColumn; title: string; color: string }[] = [
   { id: 'recurring', title: 'Recurring', color: 'orange' },
@@ -87,11 +87,6 @@ function KanbanCard({ task, onEdit, onDelete }: KanbanCardProps) {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const formatDate = (date?: string) => {
-    if (!date) return null;
-    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
   return (
     <Paper
       ref={setNodeRef}
@@ -123,11 +118,11 @@ function KanbanCard({ task, onEdit, onDelete }: KanbanCardProps) {
         </Group>
         <Menu position="bottom-end" shadow="md">
           <Menu.Target>
-            <ActionIcon variant="subtle" size="sm" onPointerDown={(e) => e.stopPropagation()}>
+            <ActionIcon variant="subtle" size="sm">
               <IconDots size={14} />
             </ActionIcon>
           </Menu.Target>
-          <Menu.Dropdown onPointerDown={(e) => e.stopPropagation()}>
+          <Menu.Dropdown>
             <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => onEdit(task)}>
               Edit
             </Menu.Item>
@@ -157,16 +152,9 @@ function KanbanCard({ task, onEdit, onDelete }: KanbanCardProps) {
           <Group gap={4}>
             <IconClock size={12} color="var(--mantine-color-dimmed)" />
             <Text size="xs" c="dimmed">
-              {formatDate(task.due_date)}
+              {new Date(task.due_date).toLocaleDateString()}
             </Text>
           </Group>
-        )}
-        {task.assignee_id && (
-          <Tooltip label="Assigned">
-            <Group gap={4}>
-              <IconUser size={12} color="var(--mantine-color-dimmed)" />
-            </Group>
-          </Tooltip>
         )}
       </Group>
     </Paper>
@@ -248,6 +236,7 @@ export function KanbanBoard() {
     tags: '',
     is_recurring: false,
   });
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -262,17 +251,59 @@ export function KanbanBoard() {
       setTasks(data);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to load tasks',
-        color: 'red',
-      });
     }
   }, []);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3004';
+    const ws = io(wsUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+    });
+
+    ws.on('connect', () => {
+      console.log('WebSocket connected');
+    });
+
+    ws.on('task:created', (task: Task) => {
+      setTasks(prev => {
+        if (prev.find(t => t.id === task.id)) return prev;
+        return [...prev, task];
+      });
+      notifications.show({
+        title: 'New Task',
+        message: task.title,
+        color: 'green',
+      });
+    });
+
+    ws.on('task:updated', (task: Task) => {
+      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
+    });
+
+    ws.on('task:deleted', ({ id }: { id: string }) => {
+      setTasks(prev => prev.filter(t => t.id !== id));
+    });
+
+    ws.on('task:moved', (data: { id: string; column_id: TaskColumn }) => {
+      setTasks(prev => prev.map(t => 
+        t.id === data.id ? { ...t, column_id: data.column_id } : t
+      ));
+    });
+
+    setSocket(ws);
+
+    return () => {
+      ws.disconnect();
+    };
+  }, []);
 
   const handleDragStart = (event: DragStartEvent) => {
     const task = tasks.find((t) => t.id === event.active.id);
@@ -287,8 +318,6 @@ export function KanbanBoard() {
     const overId = over.id as string;
 
     const activeTask = tasks.find((t) => t.id === activeId);
-    const overTask = tasks.find((t) => t.id === overId);
-
     if (!activeTask) return;
 
     // If dragging over a column
@@ -332,6 +361,10 @@ export function KanbanBoard() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: activeId, column_id: overColumn }),
           });
+          
+          // Notify via WebSocket
+          socket?.emit('task:move', { id: activeId, column_id: overColumn });
+          
           notifications.show({
             title: 'Task moved',
             message: `"${activeTask.title}" moved to ${COLUMNS.find(c => c.id === overColumn)?.title}`,
@@ -340,6 +373,11 @@ export function KanbanBoard() {
         } catch (error) {
           console.error('Failed to update task:', error);
           fetchTasks(); // Revert on error
+          notifications.show({
+            title: 'Error',
+            message: 'Failed to move task',
+            color: 'red',
+          });
         }
       }
     }
@@ -381,7 +419,6 @@ export function KanbanBoard() {
       setTasks((prev) => prev.filter((t) => t.id !== id));
       notifications.show({
         title: 'Task deleted',
-        message: 'Task has been removed',
         color: 'red',
       });
     } catch (error) {

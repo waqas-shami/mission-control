@@ -1,13 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Paper, Group, Text, Stack, Badge, Skeleton, Progress } from '@mantine/core';
+import { Paper, Group, Text, Stack, Badge, Progress } from '@mantine/core';
 import { 
   IconTrendingUp, 
   IconActivity, 
   IconBox, 
   IconCheck,
-  IconClock,
   IconRefresh
 } from '@tabler/icons-react';
 import type { KanbanMetrics } from '@/types';
@@ -39,9 +38,8 @@ export function MetricsHeader({ onRefresh }: MetricsHeaderProps) {
 
   useEffect(() => {
     fetchMetrics();
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(fetchMetrics, 10000);
-    return () => clearInterval(interval);
+    // Remove auto-refresh to prevent page wobble
+    // If you want refresh, add a manual refresh button or use a different approach
   }, []);
 
   const StatCard = ({ 
@@ -57,14 +55,14 @@ export function MetricsHeader({ onRefresh }: MetricsHeaderProps) {
     color: string;
     subtitle?: string;
   }) => (
-    <Paper p="md" radius="md" withBorder>
+    <Paper p="md" radius="md" withBorder h="100%">
       <Group justify="space-between">
         <Stack gap={4}>
           <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
             {title}
           </Text>
           {loading ? (
-            <Skeleton height={32} width={80} />
+            <Text size="xl" fw={700}>-</Text>
           ) : (
             <Text size="xl" fw={700} style={{ fontSize: '1.5rem' }}>
               {value}
@@ -86,7 +84,7 @@ export function MetricsHeader({ onRefresh }: MetricsHeaderProps) {
       <Group justify="space-between" mb="md">
         <Text size="lg" fw={700}>Mission Control Dashboard</Text>
         <Group gap="xs">
-          <Badge size="lg" variant="light" leftSection={<IconActivity size={14} />}>
+          <Badge size="lg" variant="light" color="green">
             Live
           </Badge>
           <IconRefresh 
@@ -97,7 +95,7 @@ export function MetricsHeader({ onRefresh }: MetricsHeaderProps) {
         </Group>
       </Group>
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
         <StatCard
           title="Weekly Velocity"
           value={metrics?.weeklyVelocity || 0}

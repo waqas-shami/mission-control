@@ -9,17 +9,26 @@ const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || '*',
     methods: ['GET', 'POST'],
+    transports: ['websocket', 'polling'],
   },
 });
 
 // Redis subscriber for cross-container communication
-const redisSubscriber = new Redis(process.env.REDIS_URL || 'redis://10.10.20.75:6379');
-const redisPublisher = new Redis(process.env.REDIS_URL || 'redis://10.10.20.75:6379');
+const redisSubscriber = new Redis(process.env.REDIS_URL || 'redis://redis:6379');
+const redisPublisher = new Redis(process.env.REDIS_URL || 'redis:6379');
 
-redisSubscriber.subscribe('task:created', 'task:updated', 'task:deleted', 'entity:updated');
+// Subscribe to task channels
+redisSubscriber.subscribe('task:created', 'task:updated', 'task:deleted', 'task:moved');
 
 redisSubscriber.on('message', (channel, message) => {
-  io.emit(channel, JSON.parse(message));
+  try {
+    const data = JSON.parse(message);
+    console.log(`Redis message on ${channel}:`, data.id || data);
+    // Broadcast to all connected clients
+    io.emit(channel, data);
+  } catch (e) {
+    console.error('Error parsing Redis message:', e);
+  }
 });
 
 io.on('connection', (socket) => {
@@ -35,8 +44,9 @@ io.on('connection', (socket) => {
     socket.leave(room);
   });
 
-  // Task events
-  socket.on('task:move', async (data) => {
+  // Task move event
+  socket.on('task:move', async (data: { id: string; column_id: string }) => {
+    console.log(`Task moved: ${data.id} -> ${data.column_id}`);
     // Broadcast to all clients
     io.emit('task:moved', data);
     // Also publish to Redis for other containers

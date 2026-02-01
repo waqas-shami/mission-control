@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { cacheGet, cacheSet, publishMessage } from '@/lib/redis';
 
+// Valid column IDs
+const VALID_COLUMNS = ['recurring', 'backlog', 'in_progress', 'review', 'completed'];
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -9,7 +12,6 @@ export async function GET(request: NextRequest) {
     const assigneeId = searchParams.get('assignee_id');
     const cacheKey = `tasks:${columnId || 'all'}:${assigneeId || 'all'}`;
     
-    // Try cache first
     const cached = await cacheGet(cacheKey);
     if (cached) {
       return NextResponse.json(JSON.parse(cached));
@@ -17,24 +19,24 @@ export async function GET(request: NextRequest) {
 
     let sql = 'SELECT * FROM tasks';
     const params: any[] = [];
-    const conditions: string[] = [];
-
+    
     if (columnId) {
-      conditions.push('column_id = $1');
+      sql += ' WHERE column_id = $1';
+      params.push(columnId);
     }
-    if (assigneeId) {
-      conditions.push(conditions.length ? `assignee_id = $${conditions.length + 1}` : 'assignee_id = $1');
-    }
-
-    if (conditions.length) {
-      sql += ' WHERE ' + conditions.join(' AND ');
+    
+    if (assigneeId && !columnId) {
+      sql += ' WHERE assignee_id = $1';
+      params.push(assigneeId);
+    } else if (assigneeId && columnId) {
+      sql += ' AND assignee_id = $2';
+      params.push(assigneeId);
     }
 
     sql += ' ORDER BY created_at DESC';
 
     const result = await query(sql, params);
     
-    // Cache for 30 seconds
     await cacheSet(cacheKey, JSON.stringify(result.rows), 30);
 
     return NextResponse.json(result.rows);
@@ -49,19 +51,19 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, description, column_id, priority, assignee_id, due_date, tags, is_recurring, recurring_pattern } = body;
 
+    // Validate column_id
+    const safeColumnId = VALID_COLUMNS.includes(column_id) ? column_id : 'backlog';
+
     const result = await query(
       `INSERT INTO tasks (title, description, column_id, priority, assignee_id, due_date, tags, is_recurring, recurring_pattern)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [title, description, column_id || 'backlog', priority || 'medium', assignee_id, due_date, tags || [], is_recurring || false, recurring_pattern]
+      [title, description, safeColumnId, priority || 'medium', assignee_id, due_date, tags || [], is_recurring || false, recurring_pattern]
     );
 
     const task = result.rows[0];
 
-    // Publish to WebSocket channel
     await publishMessage('task:created', task);
-
-    // Invalidate cache
     await cacheSet('tasks:all:all', '');
 
     return NextResponse.json(task, { status: 201 });
@@ -80,16 +82,33 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Task ID required' }, { status: 400 });
     }
 
+    // Filter valid fields
+    const allowedFields = ['title', 'description', 'column_id', 'priority', 'assignee_id', 'due_date', 'tags', 'is_recurring'];
+    const filteredUpdates: Record<string, any> = {};
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (allowedFields.includes(key)) {
+        filteredUpdates[key] = value;
+      }
+    });
+
+    // Validate column_id if present
+    if (filteredUpdates.column_id && !VALID_COLUMNS.includes(filteredUpdates.column_id)) {
+      filteredUpdates.column_id = 'backlog';
+    }
+
+    if (Object.keys(filteredUpdates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
     const setClauses: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
-    Object.entries(updates).forEach(([key, value]) => {
-      if (key !== 'id') {
-        setClauses.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
+    Object.entries(filteredUpdates).forEach(([key, value]) => {
+      setClauses.push(`${key} = $${paramIndex}`);
+      values.push(key === 'tags' ? JSON.stringify(value) : value);
+      paramIndex++;
     });
 
     setClauses.push(`updated_at = NOW()`);
@@ -106,10 +125,7 @@ export async function PATCH(request: NextRequest) {
 
     const task = result.rows[0];
 
-    // Publish update
     await publishMessage('task:updated', task);
-
-    // Invalidate cache
     await cacheSet('tasks:all:all', '');
 
     return NextResponse.json(task);
@@ -134,10 +150,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
 
-    // Publish deletion
     await publishMessage('task:deleted', { id });
-
-    // Invalidate cache
     await cacheSet('tasks:all:all', '');
 
     return NextResponse.json({ success: true });
