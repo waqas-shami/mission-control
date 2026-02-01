@@ -2,8 +2,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci --production
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm install
 
 COPY ws-server.js ./
 

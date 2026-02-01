@@ -2,9 +2,11 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-COPY package*.json ./
-RUN npm ci
+# Copy package files first for better caching
+COPY package.json package-lock.json* ./
+
+# Install dependencies (generates package-lock.json if missing)
+RUN npm install
 
 # Copy source code
 COPY . .
