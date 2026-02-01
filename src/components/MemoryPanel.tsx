@@ -179,7 +179,7 @@ function MemorySearchGroup({ result }: { result: MemorySearchResult }) {
             <Paper key={idx} p="xs" radius="sm" bg="dark.5">
               <Group gap="xs" mb={4}>
                 <IconFileText size={12} color="var(--mantine-color-dimmed)" />
-                <Code size="xs">{snippet.path}</Code>
+                <Text size="xs" style={{ fontFamily: 'monospace' }}>{snippet.path}</Text>
               </Group>
               <Text size="xs" c="dimmed" lineClamp={3}>
                 {snippet.content || snippet.lines}
