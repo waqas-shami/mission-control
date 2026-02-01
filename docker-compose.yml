@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: mission-control
     ports:
-      - "3000:3000"
+      - "3003:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/mission_control
@@ -24,7 +24,7 @@ services:
       dockerfile: Dockerfile.ws
     container_name: mission-control-ws
     ports:
-      - "3001:3001"
+      - "3004:3001"
     environment:
       - REDIS_URL=redis://redis:6379
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/mission_control
@@ -46,7 +46,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
     networks:
       - mission-network
     restart: unless-stopped
@@ -55,7 +55,7 @@ services:
     image: redis:7-alpine
     container_name: mission-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     networks:
