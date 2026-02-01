@@ -250,7 +250,7 @@ export function MemorySearch({ onSearch }: MemorySearchProps) {
         <Stack gap="xs" mt="sm">
           {results.slice(0, 5).map((result, idx) => (
             <Paper key={idx} p="xs" radius="sm" bg="dark.6">
-              <Code size="xs">{result.path}</Code>
+              <Text size="xs" style={{ fontFamily: 'monospace' }}>{result.path}</Text>
               <Text size="xs" c="dimmed" mt={4}>{result.lines}</Text>
             </Paper>
           ))}

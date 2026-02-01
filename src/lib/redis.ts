@@ -2,9 +2,9 @@ import Redis from 'ioredis';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://10.10.20.75:6379', {
   maxRetriesPerRequest: 3,
-  retryDelayOnFailover: 100,
   enableReadyCheck: true,
   lazyConnect: true,
+  retryStrategy: (times) => Math.min(times * 100, 3000),
 });
 
 redis.on('error', (err) => {
