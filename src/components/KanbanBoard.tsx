@@ -162,6 +162,7 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       style={{
+        flex: '1 1 0',
         minHeight: 400,
         backgroundColor: isOver ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
         border: isOver ? '2px dashed var(--mantine-color-blue-6)' : '1px solid var(--mantine-color-dark-3)',
@@ -470,11 +471,11 @@ export function KanbanBoard() {
         onDragEnd={handleDragEnd}
       >
         <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(5, 1fr)', 
+          display: 'flex', 
           gap: '8px',
           paddingBottom: '16px',
           width: '100%',
+          maxWidth: '100%',
           overflowX: 'hidden',
         }}>
           {COLUMNS.map((column) => (
@@ -499,7 +500,11 @@ export function KanbanBoard() {
                 backgroundColor: 'var(--mantine-color-body)',
                 opacity: 0.95,
                 boxShadow: 'none',
+                transform: 'translate(-50%, -50%)',
                 position: 'fixed',
+                left: '50%',
+                top: '50%',
+                width: 200,
                 pointerEvents: 'none',
                 zIndex: 9999,
               }}
