@@ -418,7 +418,7 @@ export function KanbanBoard() {
       await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
       setTasks((prev) => prev.filter((t) => t.id !== id));
       notifications.show({
-        title: 'Task deleted',
+        title: 'Task deleted', message: 'Task has been removed',
         color: 'red',
       });
     } catch (error) {
