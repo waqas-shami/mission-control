@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Paper, 
   Text, 
@@ -42,7 +42,7 @@ import {
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import type { Task, TaskColumn } from '@/types';
-import { io, Socket } from 'socket.io-client';
+import { io } from 'socket.io-client';
 
 const COLUMNS: { id: TaskColumn; title: string; color: string }[] = [
   { id: 'recurring', title: 'Recurring', color: 'orange' },
@@ -67,7 +67,8 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
 
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.3 : 1,
+    cursor: 'grab',
   };
 
   return (
@@ -80,7 +81,7 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
       radius="md"
       withBorder
       mb="xs"
-      shadow="xs"
+      shadow={isDragging ? 'lg' : 'xs'}
       className="kanban-card"
     >
       <Group justify="space-between" mb="xs">
@@ -101,11 +102,11 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
         </Group>
         <Menu position="bottom-end" shadow="md">
           <Menu.Target>
-            <ActionIcon variant="subtle" size="sm">
+            <ActionIcon variant="subtle" size="sm" onPointerDown={(e) => e.stopPropagation()}>
               <IconDots size={14} />
             </ActionIcon>
           </Menu.Target>
-          <Menu.Dropdown>
+          <Menu.Dropdown onPointerDown={(e) => e.stopPropagation()}>
             <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => onEdit(task)}>
               Edit
             </Menu.Item>
@@ -159,14 +160,15 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
-    <Paper
+    <div
       ref={setNodeRef}
-      p="sm"
-      radius="md"
-      style={{ 
+      style={{
         minHeight: 400,
-        backgroundColor: isOver ? 'var(--mantine-color-dark-6)' : undefined,
-        border: isOver ? '2px dashed var(--mantine-color-blue-5)' : '1px solid var(--mantine-color-dark-4)',
+        backgroundColor: isOver ? 'var(--mantine-color-dark-5)' : undefined,
+        border: isOver ? '2px dashed var(--mantine-color-blue-4)' : '1px solid var(--mantine-color-dark-4)',
+        borderRadius: 'var(--mantine-radius-md)',
+        padding: '8px',
+        transition: 'background-color 0.2s, border-color 0.2s',
       }}
     >
       <Group justify="space-between" mb="md">
@@ -195,11 +197,11 @@ function KanbanColumn({
       ))}
       
       {tasks.length === 0 && (
-        <Text size="xs" c="dimmed" ta="center" py="xl">
+        <Text size="xs" c="dimmed" ta="center" py="xl" style={{ opacity: 0.5 }}>
           Drop tasks here
         </Text>
       )}
-    </Paper>
+    </div>
   );
 }
 
@@ -309,7 +311,11 @@ export function KanbanBoard() {
     const { active, over } = event;
     setActiveTask(null);
 
-    if (!over) return;
+    if (!over) {
+      // Revert if dropped outside
+      fetchTasks();
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
@@ -330,7 +336,8 @@ export function KanbanBoard() {
           });
           
           if (!res.ok) {
-            throw new Error('Failed to update');
+            const errorData = await res.json();
+            throw new Error(errorData.error || 'Failed to update');
           }
           
           notifications.show({
@@ -338,16 +345,18 @@ export function KanbanBoard() {
             message: `"${activeTask.title}" moved to ${targetColumn.title}`,
             color: 'green',
           });
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to move task:', error);
           fetchTasks(); // Revert on error
           notifications.show({
             title: 'Error',
-            message: 'Failed to move task',
+            message: error.message || 'Failed to move task',
             color: 'red',
           });
         }
       }
+    } else {
+      fetchTasks(); // Revert if dropped on something else
     }
   };
 
@@ -399,8 +408,13 @@ export function KanbanBoard() {
     e.preventDefault();
 
     const taskData = {
-      ...formData,
+      title: formData.title,
+      description: formData.description,
+      column_id: formData.column_id,
+      priority: formData.priority,
+      due_date: formData.due_date || null,
       tags: formData.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      is_recurring: formData.is_recurring,
     };
 
     try {
@@ -410,7 +424,12 @@ export function KanbanBoard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingTask.id, ...taskData }),
         });
-        if (!res.ok) throw new Error('Failed to update');
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to update');
+        }
+        
         const updated = await res.json();
         setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
         notifications.show({ title: 'Task updated', message: 'Changes saved successfully', color: 'green' });
@@ -420,15 +439,20 @@ export function KanbanBoard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(taskData),
         });
-        if (!res.ok) throw new Error('Failed to create');
+        
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Failed to create');
+        }
+        
         const created = await res.json();
         setTasks((prev) => [...prev, created]);
         notifications.show({ title: 'Task created', message: 'New task added to the board', color: 'green' });
       }
       closeModal();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save task:', error);
-      notifications.show({ title: 'Error', message: 'Failed to save task', color: 'red' });
+      notifications.show({ title: 'Error', message: error.message || 'Failed to save task', color: 'red' });
     }
   };
 
@@ -446,7 +470,7 @@ export function KanbanBoard() {
       >
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(220px, 1fr))`, 
+          gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))`, 
           gap: '12px',
           overflowX: 'auto',
           paddingBottom: '16px',
@@ -463,9 +487,24 @@ export function KanbanBoard() {
           ))}
         </div>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
           {activeTask ? (
-            <Paper p="sm" radius="md" withBorder shadow="lg" className="kanban-card">
+            <Paper 
+              p="sm" 
+              radius="md" 
+              withBorder 
+              shadow="lg"
+              style={{
+                backgroundColor: 'var(--mantine-color-body)',
+                opacity: 0.9,
+                transform: 'rotate(2deg)',
+              }}
+            >
+              <Group gap="xs" mb="xs">
+                <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light">
+                  {activeTask.priority}
+                </Badge>
+              </Group>
               <Text size="sm" fw={500}>{activeTask.title}</Text>
             </Paper>
           ) : null}
@@ -496,7 +535,7 @@ export function KanbanBoard() {
             />
             <Group grow>
               <Select
-                label="Column"
+                label="Status"
                 data={COLUMNS.map((c) => ({ value: c.id, label: c.title }))}
                 value={formData.column_id}
                 onChange={(value) => setFormData({ ...formData, column_id: (value || 'backlog') as TaskColumn })}
