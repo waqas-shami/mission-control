@@ -381,6 +381,7 @@ export function KanbanBoard() {
       setTasks((prev) => prev.filter((t) => t.id !== id));
       notifications.show({
         title: 'Task deleted',
+        message: 'Task has been removed',
         color: 'red',
       });
     } catch (error) {
@@ -406,7 +407,7 @@ export function KanbanBoard() {
         if (!res.ok) throw new Error('Failed to update');
         const updated = await res.json();
         setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
-        notifications.show({ title: 'Task updated', color: 'green' });
+        notifications.show({ title: 'Task updated', message: 'Changes saved successfully', color: 'green' });
       } else {
         const res = await fetch('/api/tasks', {
           method: 'POST',
@@ -416,7 +417,7 @@ export function KanbanBoard() {
         if (!res.ok) throw new Error('Failed to create');
         const created = await res.json();
         setTasks((prev) => [...prev, created]);
-        notifications.show({ title: 'Task created', color: 'green' });
+        notifications.show({ title: 'Task created', message: 'New task added to the board', color: 'green' });
       }
       closeModal();
     } catch (error) {
