@@ -2,6 +2,7 @@
 
 import { MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
 import '@mantine/notifications/styles.css';
@@ -27,30 +28,13 @@ const theme = createTheme({
     ],
   },
   defaultRadius: 'md',
-  components: {
-    Card: {
-      defaultProps: {
-        shadow: 'sm',
-        padding: 'lg',
-        radius: 'md',
-      },
-    },
-    Button: {
-      defaultProps: {
-        size: 'sm',
-      },
-    },
-    Badge: {
-      defaultProps: {
-        variant: 'light',
-      },
-    },
-  },
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const { colorScheme, toggleColorScheme } = useColorScheme();
+
   return (
-    <MantineProvider theme={theme} defaultColorScheme="dark">
+    <MantineProvider theme={theme} defaultColorScheme={colorScheme}>
       <Notifications position="top-right" />
       {children}
     </MantineProvider>

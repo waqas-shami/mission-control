@@ -1,35 +1,83 @@
 #!/bin/bash
 # Task Sync Script - Syncs conversation tasks to Mission Control
-# Usage: ./sync-tasks.sh [--dry-run]
+# Usage: ./sync-tasks.sh [--dry-run] [--all]
 
 set -e
 
 MISSION_CONTROL_URL="${MISSION_CONTROL_URL:-http://localhost:3003}"
 DRY_RUN=false
+SYNC_ALL=false
 if [[ "$1" == "--dry-run" ]]; then
     DRY_RUN=true
     echo "🧪 DRY RUN MODE - No changes will be made"
+fi
+if [[ "$1" == "--all" ]]; then
+    SYNC_ALL=true
+    echo "📚 SYNC ALL MODE - Will process all available memory files"
 fi
 
 # Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Detect conversation files
-MEMORY_DIR="/home/clawdbot/clawd/memory"
-TODAY=$(date +%Y-%m-%d)
-SESSION_FILE="$MEMORY_DIR/${TODAY}.md"
-SESSION_FILE_ALT="$MEMORY_DIR/${TODAY}-*.md"
+# Memory directory - try multiple paths
+MEMORY_DIRS=(
+    "/home/clawdbot/clawd/memory"
+    "/home/clawdbot/clawd"
+    "/home/projects/memory"
+)
 
-# Find all session files for today
+find_memory_dir() {
+    for dir in "${MEMORY_DIRS[@]}"; do
+        if [[ -d "$dir" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+    return 1
+}
+
+MEMORY_DIR=$(find_memory_dir)
+if [[ -z "$MEMORY_DIR" ]]; then
+    log_error "Memory directory not found in: ${MEMORY_DIRS[*]}"
+    log_error "Please set MEMORY_DIR environment variable"
+    exit 1
+fi
+
+log_info "Found memory directory: $MEMORY_DIR"
+
+# Find session files
 find_session_files() {
-    find "$MEMORY_DIR" -name "${TODAY}*.md" -type f 2>/dev/null | grep -v CONVERSATION_LOG | grep -v SYSTEM_MEMORY
+    local files=()
+    
+    if $SYNC_ALL; then
+        # Find all memory files
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -print0 2>/dev/null | sort -rz)
+    else
+        # Find today's files
+        local today=$(date +%Y-%m-%d)
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "${today}*.md" -type f -print0 2>/dev/null | sort -rz)
+        
+        # If no today's files, find most recent file
+        if [[ ${#files[@]} -eq 0 ]]; then
+            log_warn "No files found for today ($today), searching for most recent..."
+            while IFS= read -r -d '' file; do
+                files+=("$file")
+            done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -print0 2>/dev/null | sort -rz | head -1)
+        fi
+    fi
+    
+    printf '%s\n' "${files[@]}"
 }
 
 # Extract task-like patterns from conversation
@@ -37,28 +85,35 @@ extract_tasks() {
     local file="$1"
     local tasks=()
     
-    # Pattern 1: TODO/FIXME/TASK markers
-    grep -hE "^\s*[-*]\s*\[ \]|TODO:|FIXME:|TASK:|Action Item:|Next Step:" "$file" 2>/dev/null | while read -r line; do
-        # Clean up and create task
+    # Pattern 1: Checkbox items
+    grep -hE "^\s*[-*]\s*\[\s*\]" "$file" 2>/dev/null | while read -r line; do
+        title=$(echo "$line" | sed 's/^\s*[-*]\s*\[\s*\]\s*//' | xargs)
+        if [[ -n "$title" && ${#title} -gt 5 ]]; then
+            tasks+=("$title")
+        fi
+    done
+    
+    # Pattern 2: TODO/FIXME/TASK markers
+    grep -hE "TODO:|FIXME:|TASK:|Action Item:|Next Step:" "$file" 2>/dev/null | while read -r line; do
         title=$(echo "$line" | sed 's/^\s*[-*]\s*//' | sed 's/^\(TODO\|FIXME\|TASK\|Action Item\|Next Step\):\s*//i' | xargs)
         if [[ -n "$title" && ${#title} -gt 5 ]]; then
             tasks+=("$title")
         fi
     done
     
-    # Pattern 2: Project lines with dashes
-    grep -hE "^\s*[-*]\s+\w+.*project|^\s*[-*]\s+\w+.*build|^\s*[-*]\s+\w+.*create|^\s*[-*]\s+\w+.*setup" "$file" 2>/dev/null | while read -r line; do
+    # Pattern 3: Project lines with action verbs
+    grep -hE "^\s*[-*]\s+(build|create|setup|deploy|fix|implement|add|make|run|configure|install|write|update)" "$file" 2>/dev/null | while read -r line; do
         title=$(echo "$line" | sed 's/^\s*[-*]\s*//' | xargs)
-        if [[ -n "$title" && ${#title} -gt 10 ]]; then
+        if [[ -n "$title" && ${#title} -gt 10 && ${#title} -lt 200 ]]; then
             tasks+=("$title")
         fi
     done
     
-    # Pattern 3: Conversation summaries about projects
-    grep -hE "project|task|goal|mission|build|create|deploy|setup" "$file" 2>/dev/null | head -20 | while read -r line; do
-        if echo "$line" | grep -qE ":\s*[A-Z]"; then
-            title=$(echo "$line" | sed 's/^.*: //' | xargs)
-            if [[ -n "$title" && ${#title} -gt 10 && ${#title} -lt 200 ]]; then
+    # Pattern 4: Lines with "should" or "need to"
+    grep -hE "should|need to|must|have to" "$file" 2>/dev/null | while read -r line; do
+        if echo "$line" | grep -qE "^\s*[-*]"; then
+            title=$(echo "$line" | sed 's/^\s*[-*]\s*//' | xargs)
+            if [[ -n "$title" && ${#title} -gt 10 ]]; then
                 tasks+=("$title")
             fi
         fi
@@ -76,21 +131,30 @@ create_task() {
     local tags="$4"
     
     if $DRY_RUN; then
-        echo "📝 Would create task: $title"
+        echo "📝 Would create: $title (priority: $priority)"
         return 0
     fi
     
-    local payload=$(cat <<EOF
-{
-    "title": $(echo "$title" | jq -Rs .),
-    "description": $(echo "$description" | jq -Rs .),
-    "column_id": "backlog",
-    "priority": "$priority",
-    "tags": [$(echo "$tags" | sed 's/,/\",\"/g' | sed 's/^/\"/' | sed 's/$/\"/')],
-    "is_recurring": false
-}
-EOF
-)
+    # Check for duplicates (basic check by title)
+    local existing=$(curl -s "${MISSION_CONTROL_URL}/api/tasks?column_id=backlog" 2>/dev/null | grep -c "$title" || echo "0")
+    if [[ "$existing" -gt "2" ]]; then
+        echo "⏭️  Skipping duplicate: $title"
+        return 0
+    fi
+    
+    local payload=$(jq -n \
+        --arg title "$title" \
+        --arg description "$description" \
+        --arg priority "$priority" \
+        --arg tags "$tags" \
+        '{
+            title: $title,
+            description: $description,
+            column_id: "backlog",
+            priority: $priority,
+            tags: ($tags | split(",") | map(select(length > 0))),
+            is_recurring: false
+        }')
     
     response=$(curl -s -X POST "$MISSION_CONTROL_URL/api/tasks" \
         -H "Content-Type: application/json" \
@@ -98,8 +162,10 @@ EOF
     
     if echo "$response" | grep -q "id"; then
         log_info "✅ Created: $title"
+        return 0
     else
-        log_warn "⚠️ Failed: $title - $response"
+        log_warn "⚠️ Failed: $title"
+        return 1
     fi
 }
 
@@ -107,21 +173,28 @@ EOF
 main() {
     log_info "🚀 Starting Task Sync to Mission Control"
     log_info "📡 Target: $MISSION_CONTROL_URL"
+    log_info "📁 Memory dir: $MEMORY_DIR"
     
     local session_files=($(find_session_files))
     
     if [[ ${#session_files[@]} -eq 0 ]]; then
-        log_warn "No session files found for today ($TODAY)"
+        log_warn "No session files found in $MEMORY_DIR"
+        log_info "Available files:"
+        ls -la "$MEMORY_DIR"/*.md 2>/dev/null || echo "  (none)"
         exit 0
     fi
     
-    log_info "Found ${#session_files[@]} session files"
+    log_info "Found ${#session_files[@]} session file(s):"
+    for f in "${session_files[@]}"; do
+        echo "  - $f"
+    done
     
     local total_tasks=0
     local created_tasks=0
+    local failed_tasks=0
     
     for file in "${session_files[@]}"; do
-        log_info "Processing: $file"
+        log_info "Processing: $(basename "$file")"
         
         while IFS= read -r task; do
             [[ -z "$task" ]] && continue
@@ -129,29 +202,44 @@ main() {
             
             # Determine priority based on keywords
             priority="medium"
-            if echo "$task" | grep -qiE "urgent|critical|asap|important|must|immediately"; then
+            if echo "$task" | grep -qiE "urgent|critical|asap|important|must|immediately|error|failed"; then
                 priority="high"
-            elif echo "$task" | grep -qiE "low|when|eventually|sometime"; then
+            elif echo "$task" | grep -qiE "low|when|eventually|sometime|maybe|later"; then
                 priority="low"
             fi
             
-            # Extract tags
+            # Extract tags based on content
             tags="synced,memory"
-            if echo "$task" | grep -qiE "build|create|deploy"; then
+            if echo "$task" | grep -qiE "build|create|deploy|coding|code|script"; then
                 tags="$tags,development"
-            elif echo "$task" | grep -qiE "research|learn|study"; then
+            fi
+            if echo "$task" | grep -qiE "research|learn|study|read"; then
                 tags="$tags,research"
-            elif echo "$task" | grep -qiE "setup|config|install"; then
+            fi
+            if echo "$task" | grep -qiE "setup|config|install|deploy|docker|nginx"; then
                 tags="$tags,infrastructure"
             fi
+            if echo "$task" | grep -qiE "domain|dns|network"; then
+                tags="$tags,networking"
+            fi
+            if echo "$task" | grep -qiE "sync|memory|task"; then
+                tags="$tags,sync"
+            fi
             
-            create_task "$task" "Synced from conversation memory" "$priority" "$tags"
-            ((created_tasks++))
+            if create_task "$task" "Synced from conversation memory" "$priority" "$tags"; then
+                ((created_tasks++))
+            else
+                ((failed_tasks++))
+            fi
             
         done < <(extract_tasks "$file")
     done
     
-    log_info "✅ Sync complete: $total_tasks tasks found, $created_tasks created"
+    echo ""
+    log_info "✅ Sync complete:"
+    log_info "   Found: $total_tasks tasks"
+    log_info "   Created: $created_tasks"
+    log_info "   Failed: $failed_tasks"
 }
 
 main

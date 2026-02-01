@@ -33,17 +33,18 @@ import {
 import { MetricsHeader } from '@/components/MetricsHeader';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { MemoryPanel } from '@/components/MemoryPanel';
+import { useColorScheme } from '@/hooks/useColorScheme';
 
 type Tab = 'dashboard' | 'kanban' | 'memory' | 'entities' | 'artifacts' | 'instructions';
 
 export default function Home() {
   const [opened, { toggle }] = useDisclosure();
   const [activeTab, setActiveTab] = useState<Tab>('kanban');
-  const [colorScheme, setColorScheme] = useState<'dark' | 'light'>('dark');
+  const { colorScheme, toggleColorScheme, mounted } = useColorScheme();
 
   const navItems = [
     { icon: IconDashboard, label: 'Dashboard', value: 'dashboard' as Tab },
-    { icon: IconLayoutKanban, label: 'Task Board', value: 'kanban' as Tab, badge: '5' },
+    { icon: IconLayoutKanban, label: 'Task Board', value: 'kanban' as Tab },
     { icon: IconBrain, label: 'Cognitive Memory', value: 'memory' as Tab },
     { icon: IconUsers, label: 'Entities', value: 'entities' as Tab },
     { icon: IconFiles, label: 'Artifacts', value: 'artifacts' as Tab },
@@ -51,7 +52,6 @@ export default function Home() {
   ];
 
   const handleRefresh = () => {
-    // Trigger refresh of current view
     window.location.reload();
   };
 
@@ -69,9 +69,7 @@ export default function Home() {
               <IconTerminal2 size={24} color="var(--mantine-color-blue-5)" />
               <Text size="lg" fw={700}>Mission Control</Text>
             </Group>
-            <Badge size="sm" variant="light" color="green">
-              SSOT
-            </Badge>
+            <Badge size="sm" variant="light" color="green">SSOT</Badge>
           </Group>
           
           <Group gap="xs">
@@ -80,12 +78,13 @@ export default function Home() {
                 <IconRefresh size={20} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label={`Switch to ${colorScheme === 'dark' ? 'light' : 'dark'} mode`}>
+            <Tooltip label={mounted && colorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
               <ActionIcon 
                 variant="subtle"
-                onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+                onClick={toggleColorScheme}
+                aria-label="Toggle color scheme"
               >
-                {colorScheme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
+                {mounted && colorScheme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
               </ActionIcon>
             </Tooltip>
           </Group>
@@ -104,13 +103,6 @@ export default function Home() {
                   <ThemeIcon variant="light" size="sm" color={activeTab === item.value ? 'blue' : 'gray'}>
                     <item.icon size={16} />
                   </ThemeIcon>
-                }
-                rightSection={
-                  item.badge && (
-                    <Badge size="sm" variant="filled" color="blue">
-                      {item.badge}
-                    </Badge>
-                  )
                 }
                 onClick={() => setActiveTab(item.value)}
                 style={{ borderRadius: '8px' }}
@@ -140,7 +132,7 @@ export default function Home() {
             <Paper p="md" radius="md" withBorder>
               <Text fw={600} mb="md">System Overview</Text>
               <Text size="sm" c="dimmed">
-                Welcome to Mission Control. Select a view from the sidebar to get started.
+                Welcome to Mission Control. Select a view from the sidebar.
               </Text>
             </Paper>
           </Stack>
@@ -196,7 +188,7 @@ export default function Home() {
             <Paper p="md" radius="md" withBorder>
               <Text fw={600} mb="md">Instruction Ledger</Text>
               <Text size="sm" c="dimmed">
-                Dedicated log of all user-provided inputs, global instructions, and datasets.
+                User-provided inputs, global instructions, and datasets.
               </Text>
             </Paper>
           </Stack>
