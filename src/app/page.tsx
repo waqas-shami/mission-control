@@ -19,7 +19,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { 
   IconDashboard, 
-  IconKanban, 
+  IconLayoutKanban, 
   IconBrain, 
   IconUsers, 
   IconFiles,
@@ -43,7 +43,7 @@ export default function Home() {
 
   const navItems = [
     { icon: IconDashboard, label: 'Dashboard', value: 'dashboard' as Tab },
-    { icon: IconKanban, label: 'Task Board', value: 'kanban' as Tab, badge: '5' },
+    { icon: IconLayoutKanban, label: 'Task Board', value: 'kanban' as Tab, badge: '5' },
     { icon: IconBrain, label: 'Cognitive Memory', value: 'memory' as Tab },
     { icon: IconUsers, label: 'Entities', value: 'entities' as Tab },
     { icon: IconFiles, label: 'Artifacts', value: 'artifacts' as Tab },
