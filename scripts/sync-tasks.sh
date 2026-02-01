@@ -22,9 +22,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_info() { echo -e "${GREEN}[INFO]${NC} $1" 1>&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" 1>&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" 1>&2; }
 
 # Memory directory - try multiple paths
 MEMORY_DIRS=(
@@ -33,17 +33,14 @@ MEMORY_DIRS=(
     "/home/projects/memory"
 )
 
-find_memory_dir() {
-    for dir in "${MEMORY_DIRS[@]}"; do
-        if [[ -d "$dir" ]]; then
-            echo "$dir"
-            return 0
-        fi
-    done
-    return 1
-}
+MEMORY_DIR=""
+for dir in "${MEMORY_DIRS[@]}"; do
+    if [[ -d "$dir" ]]; then
+        MEMORY_DIR="$dir"
+        break
+    fi
+done
 
-MEMORY_DIR=$(find_memory_dir)
 if [[ -z "$MEMORY_DIR" ]]; then
     log_error "Memory directory not found in: ${MEMORY_DIRS[*]}"
     log_error "Please set MEMORY_DIR environment variable"
@@ -52,28 +49,28 @@ fi
 
 log_info "Found memory directory: $MEMORY_DIR"
 
-# Find session files
-find_session_files() {
+# Find session files - returns array
+get_session_files() {
     local files=()
+    local today=$(date +%Y-%m-%d)
     
     if $SYNC_ALL; then
-        # Find all memory files
-        while IFS= read -r -d '' file; do
+        # Find all memory files, sorted by modification time (newest first)
+        while IFS= read -r file; do
             files+=("$file")
-        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -print0 2>/dev/null | sort -rz)
+        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -exec stat -c '%Y %n' {} \; 2>/dev/null | sort -rn | cut -d' ' -f2-)
     else
-        # Find today's files
-        local today=$(date +%Y-%m-%d)
-        while IFS= read -r -d '' file; do
+        # Find today's files first
+        while IFS= read -r file; do
             files+=("$file")
-        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "${today}*.md" -type f -print0 2>/dev/null | sort -rz)
+        done < <(find "$MEMORY_DIR" -maxdepth 1 -name "${today}*.md" -type f -exec stat -c '%Y %n' {} \; 2>/dev/null | sort -rn | cut -d' ' -f2-)
         
         # If no today's files, find most recent file
         if [[ ${#files[@]} -eq 0 ]]; then
             log_warn "No files found for today ($today), searching for most recent..."
-            while IFS= read -r -d '' file; do
+            while IFS= read -r file; do
                 files+=("$file")
-            done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -print0 2>/dev/null | sort -rz | head -1)
+            done < <(find "$MEMORY_DIR" -maxdepth 1 -name "*.md" -type f -exec stat -c '%Y %n' {} \; 2>/dev/null | sort -rn | head -3 | cut -d' ' -f2-)
         fi
     fi
     
@@ -135,13 +132,6 @@ create_task() {
         return 0
     fi
     
-    # Check for duplicates (basic check by title)
-    local existing=$(curl -s "${MISSION_CONTROL_URL}/api/tasks?column_id=backlog" 2>/dev/null | grep -c "$title" || echo "0")
-    if [[ "$existing" -gt "2" ]]; then
-        echo "⏭️  Skipping duplicate: $title"
-        return 0
-    fi
-    
     local payload=$(jq -n \
         --arg title "$title" \
         --arg description "$description" \
@@ -175,7 +165,8 @@ main() {
     log_info "📡 Target: $MISSION_CONTROL_URL"
     log_info "📁 Memory dir: $MEMORY_DIR"
     
-    local session_files=($(find_session_files))
+    # Get session files as array
+    mapfile -t session_files < <(get_session_files)
     
     if [[ ${#session_files[@]} -eq 0 ]]; then
         log_warn "No session files found in $MEMORY_DIR"
@@ -184,9 +175,9 @@ main() {
         exit 0
     fi
     
-    log_info "Found ${#session_files[@]} session file(s):"
+    log_info "Found ${#session_files[@]} session file(s)"
     for f in "${session_files[@]}"; do
-        echo "  - $f"
+        log_info "  - $f"
     done
     
     local total_tasks=0
