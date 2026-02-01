@@ -51,7 +51,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, description, column_id, priority, assignee_id, due_date, tags, is_recurring, recurring_pattern } = body;
 
-    // Validate column_id
     const safeColumnId = VALID_COLUMNS.includes(column_id) ? column_id : 'backlog';
 
     const result = await query(
@@ -76,38 +75,48 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, ...updates } = body;
+    const { id, column_id, ...updates } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Task ID required' }, { status: 400 });
     }
 
-    // Filter valid fields
-    const allowedFields = ['title', 'description', 'column_id', 'priority', 'assignee_id', 'due_date', 'tags', 'is_recurring'];
-    const filteredUpdates: Record<string, any> = {};
+    // Validate and build the update object
+    const updateFields: Record<string, any> = {};
     
-    Object.entries(updates).forEach(([key, value]) => {
-      if (allowedFields.includes(key)) {
-        filteredUpdates[key] = value;
+    // Handle column_id separately with validation
+    if (column_id !== undefined) {
+      if (VALID_COLUMNS.includes(column_id)) {
+        updateFields.column_id = column_id;
+      } else {
+        return NextResponse.json({ error: 'Invalid column_id value' }, { status: 400 });
+      }
+    }
+
+    // Handle other fields
+    const allowedFields = ['title', 'description', 'priority', 'assignee_id', 'due_date', 'tags', 'is_recurring'];
+    allowedFields.forEach(field => {
+      if (updates[field] !== undefined) {
+        updateFields[field] = updates[field];
       }
     });
 
-    // Validate column_id if present
-    if (filteredUpdates.column_id && !VALID_COLUMNS.includes(filteredUpdates.column_id)) {
-      filteredUpdates.column_id = 'backlog';
-    }
-
-    if (Object.keys(filteredUpdates).length === 0) {
+    if (Object.keys(updateFields).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
+    // Build SET clause
     const setClauses: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
-    Object.entries(filteredUpdates).forEach(([key, value]) => {
+    Object.entries(updateFields).forEach(([key, value]) => {
       setClauses.push(`${key} = $${paramIndex}`);
-      values.push(key === 'tags' ? JSON.stringify(value) : value);
+      if (key === 'tags') {
+        values.push(JSON.stringify(value));
+      } else {
+        values.push(value);
+      }
       paramIndex++;
     });
 

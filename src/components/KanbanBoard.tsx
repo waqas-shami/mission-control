@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Paper, 
   Text, 
@@ -67,8 +67,10 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
 
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.3 : 1,
+    opacity: isDragging ? 0.4 : 1,
     cursor: 'grab',
+    zIndex: isDragging ? 1000 : 1,
+    position: 'relative' as const,
   };
 
   return (
@@ -81,7 +83,7 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
       radius="md"
       withBorder
       mb="xs"
-      shadow={isDragging ? 'lg' : 'xs'}
+      shadow={isDragging ? 'xl' : 'xs'}
       className="kanban-card"
     >
       <Group justify="space-between" mb="xs">
@@ -164,16 +166,16 @@ function KanbanColumn({
       ref={setNodeRef}
       style={{
         minHeight: 400,
-        backgroundColor: isOver ? 'var(--mantine-color-dark-5)' : undefined,
+        backgroundColor: isOver ? 'var(--mantine-color-dark-5)' : 'transparent',
         border: isOver ? '2px dashed var(--mantine-color-blue-4)' : '1px solid var(--mantine-color-dark-4)',
         borderRadius: 'var(--mantine-radius-md)',
         padding: '8px',
-        transition: 'background-color 0.2s, border-color 0.2s',
+        transition: 'background-color 0.15s ease, border-color 0.15s ease',
       }}
     >
       <Group justify="space-between" mb="md">
         <Group gap="xs">
-          <Text fw={600}>{column.title}</Text>
+          <Text fw={600} style={{ color: 'var(--mantine-color-text)' }}>{column.title}</Text>
           <Badge size="sm" variant="light" color={column.color}>
             {tasks.length}
           </Badge>
@@ -312,7 +314,6 @@ export function KanbanBoard() {
     setActiveTask(null);
 
     if (!over) {
-      // Revert if dropped outside
       fetchTasks();
       return;
     }
@@ -323,7 +324,6 @@ export function KanbanBoard() {
     const activeTask = tasks.find((t) => t.id === activeId);
     if (!activeTask) return;
 
-    // Check if dropped on a column
     const targetColumn = COLUMNS.find((col) => col.id === overId);
     if (targetColumn) {
       const newColumn = targetColumn.id;
@@ -347,7 +347,7 @@ export function KanbanBoard() {
           });
         } catch (error: any) {
           console.error('Failed to move task:', error);
-          fetchTasks(); // Revert on error
+          fetchTasks();
           notifications.show({
             title: 'Error',
             message: error.message || 'Failed to move task',
@@ -356,7 +356,7 @@ export function KanbanBoard() {
         }
       }
     } else {
-      fetchTasks(); // Revert if dropped on something else
+      fetchTasks();
     }
   };
 
@@ -470,10 +470,11 @@ export function KanbanBoard() {
       >
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(200px, 1fr))`, 
+          gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(180px, 1fr))`, 
           gap: '12px',
-          overflowX: 'auto',
+          overflowX: 'hidden',
           paddingBottom: '16px',
+          width: '100%',
         }}>
           {COLUMNS.map((column) => (
             <KanbanColumn
@@ -487,24 +488,21 @@ export function KanbanBoard() {
           ))}
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
+        <DragOverlay>
           {activeTask ? (
             <Paper 
               p="sm" 
               radius="md" 
               withBorder 
-              shadow="lg"
+              shadow="xl"
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
-                opacity: 0.9,
-                transform: 'rotate(2deg)',
+                maxWidth: 200,
               }}
             >
-              <Group gap="xs" mb="xs">
-                <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light">
-                  {activeTask.priority}
-                </Badge>
-              </Group>
+              <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light" mb="xs">
+                {activeTask.priority}
+              </Badge>
               <Text size="sm" fw={500}>{activeTask.title}</Text>
             </Paper>
           ) : null}
