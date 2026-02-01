@@ -13,62 +13,84 @@ Mission Control is a high-performance operational command center that serves as 
 
 ### 📋 Task Management Engine (Kanban)
 - Dynamic Kanban board with 5 workflow columns:
-  - Recurring
-  - Backlog
-  - In Progress
-  - Review
-  - Activity Completed
+  - Recurring, Backlog, In Progress, Review, Activity Completed
 - Drag-and-drop functionality using dnd-kit
-- Recurring task automation
 - PostgreSQL persistence for data safety
 
-### 📈 Real-Time Metrics Dashboard
-- Weekly velocity tracking
-- Active load monitoring
-- Total inventory count
-- Completion rate percentage
-- Pipeline distribution visualization
+### 🔄 Real-Time Task Sync
+- Automatic sync from conversation memory
+- Daily scheduled sync (hourly)
+- Manual sync triggers available
 
 ## 🛠 Tech Stack
 
-- **Framework**: Next.js 14+ (App Router)
-- **UI Library**: Mantine v7 (dark mode, built-in components)
-- **Database**: PostgreSQL
-- **Caching**: Redis
-- **Real-time**: Socket.io WebSocket server
+- **Framework**: Next.js 16+ (App Router + Turbopack)
+- **UI Library**: Mantine v7 (dark mode)
+- **Database**: PostgreSQL + Redis
+- **Real-time**: Socket.io WebSocket
 - **Drag & Drop**: dnd-kit
 - **Containerization**: Docker + docker-compose
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- PostgreSQL (or use provided docker-compose.local.yml)
-- Redis (or use provided docker-compose.local.yml)
-
-### Option 1: Local Development with Docker
-
 ```bash
-# Start with local PostgreSQL and Redis
-docker-compose -f docker-compose.local.yml up -d
+# Build and start
+docker-compose up -d --build
 
 # Initialize database
-./scripts/seed-db.sh
+docker exec -it mission-db psql -U postgres -d mission_control -f /docker-entrypoint-initdb.d/schema.sql
 
-# Visit http://localhost:3000
+# Visit http://10.10.20.75:3003
 ```
 
-### Option 2: Connect to Existing Infrastructure
+## 📡 Exposed Ports
 
+| Service | Port | Description |
+|---------|------|-------------|
+| App | 3003 | Main web application |
+| WebSocket | 3004 | Real-time updates |
+| PostgreSQL | 5433 | Database (internal) |
+| Redis | 6380 | Cache (internal) |
+
+## 🔄 Task Sync System
+
+### Automatic Sync
+
+The system includes three sync mechanisms:
+
+#### 1. Real-Time Sync (After Each Session)
 ```bash
-# Configure environment
-cp .env.example .env
-# Edit .env with your PostgreSQL and Redis URLs
+# After any significant conversation
+source /home/projects/mission-control/scripts/sync-after-session.sh main
+```
 
-# Start application
-docker-compose up -d
+#### 2. Hourly Cron Job
+Runs automatically inside the Docker container:
+- Extracts tasks from memory files
+- Creates tasks in the backlog
+- Logs to `/app/logs/sync.log`
 
-# Visit http://10.10.20.75:3000
+#### 3. Manual Sync
+```bash
+# Sync today's tasks
+./scripts/sync-tasks.sh
+
+# Dry run (no changes)
+./scripts/sync-tasks.sh --dry-run
+```
+
+### Sync Sources
+- `/home/clawdbot/clawd/memory/YYYY-MM-DD*.md` - Daily conversation logs
+- Extracts patterns: `TODO:`, `FIXME:`, `- [ ]`, action items
+- Prioritizes based on keywords (urgent, critical, important)
+
+### Sync Configuration
+```bash
+# Set custom target URL
+export MISSION_CONTROL_URL=http://your-server:3003
+
+# Run sync
+./scripts/sync-tasks.sh
 ```
 
 ## 📁 Project Structure
@@ -76,95 +98,41 @@ docker-compose up -d
 ```
 mission-control/
 ├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── tasks/         # Task CRUD operations
-│   │   │   ├── metrics/       # Dashboard metrics
-│   │   │   ├── entities/      # Entity management
-│   │   │   ├── memory/        # Memory search
-│   │   │   └── health/        # Health check
-│   │   ├── layout.tsx         # Root layout with providers
-│   │   └── page.tsx           # Main dashboard
-│   ├── components/
-│   │   ├── KanbanBoard.tsx    # Drag-drop task board
-│   │   ├── MetricsHeader.tsx  # Real-time metrics
-│   │   └── MemoryPanel.tsx    # Cognitive memory viewer
-│   ├── lib/
-│   │   ├── db.ts              # PostgreSQL connection
-│   │   ├── redis.ts           # Redis client & caching
-│   │   └── memory-tools.ts    # Memory integration
-│   └── types/
-│       └── index.ts           # TypeScript definitions
-├── docker-compose.yml         # Production config
-├── docker-compose.local.yml   # Local dev config
-├── schema.sql                 # Database schema
-└── ws-server.js               # WebSocket server
+│   ├── app/api/           # API routes
+│   ├── components/        # UI components
+│   └── lib/               # Database, Redis, Memory tools
+├── scripts/
+│   ├── sync-tasks.sh      # Bash sync (extract tasks from memory)
+│   ├── sync-realtime.ts   # Node.js real-time sync
+│   ├── sync-daily.sh      # Daily cron wrapper
+│   └── sync-after-session.sh  # Hook for after sessions
+├── logs/                  # Sync logs
+├── docker-compose.yml     # Production config
+└── schema.sql             # Database schema
 ```
 
-## 🔧 API Endpoints
+## 🐳 Docker Commands
 
-### Tasks
-- `GET /api/tasks` - List all tasks
-- `POST /api/tasks` - Create new task
-- `PATCH /api/tasks` - Update task
-- `DELETE /api/tasks?id=<id>` - Delete task
-
-### Metrics
-- `GET /api/metrics` - Get dashboard metrics
-
-### Entities
-- `GET /api/entities` - List entities
-- `POST /api/entities` - Create entity
-
-### Memory
-- `POST /api/memory/search` - Search memory
-
-## 🐳 Docker Deployment
-
-### Build & Run
 ```bash
-# Build images
-docker-compose build
+# Build
+docker-compose build --no-cache
 
-# Start services
+# Start
 docker-compose up -d
 
 # View logs
-docker-compose logs -f
+docker-compose logs -f app
+
+# Stop
+docker-compose down
+
+# Stop with volumes
+docker-compose down -v
 ```
-
-### Services
-- **app**: Next.js application on port 3000
-- **ws-server**: WebSocket server on port 3001
-
-## 📝 Database Schema
-
-Key tables:
-- `entities` - Users and agents
-- `tasks` - Kanban tasks with state tracking
-- `activity_log` - Action history
-- `instructions` - Global instructions
-- `artifacts` - Document repository
-
-See `schema.sql` for full schema.
-
-## 🔒 Security
-
-- Open access configured for local network
-- Bound to 0.0.0.0 for network accessibility
-- No localhost-only restrictions
 
 ## 📦 GitHub Repository
 
 https://github.com/waqas-shami/mission-control
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing`)
-5. Open a Pull Request
 
 ---
 
