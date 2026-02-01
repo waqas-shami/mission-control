@@ -163,8 +163,8 @@ function KanbanColumn({
       ref={setNodeRef}
       style={{
         minHeight: 400,
-        backgroundColor: isOver ? 'var(--mantine-color-gray-1)' : 'transparent',
-        border: isOver ? '2px dashed var(--mantine-color-blue-5)' : '1px solid var(--mantine-color-dark-3)',
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+        border: isOver ? '2px dashed var(--mantine-color-blue-6)' : '1px solid var(--mantine-color-dark-3)',
         borderRadius: 'var(--mantine-radius-md)',
         padding: '8px',
         transition: 'background-color 0.15s ease, border-color 0.15s ease',
@@ -498,6 +498,10 @@ export function KanbanBoard() {
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
                 opacity: 0.95,
+                boxShadow: 'none',
+                position: 'fixed',
+                pointerEvents: 'none',
+                zIndex: 9999,
               }}
             >
               <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light" mb="xs">
