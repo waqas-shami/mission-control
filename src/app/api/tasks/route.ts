@@ -17,23 +17,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(JSON.parse(cached));
     }
 
-    let sql = 'SELECT * FROM tasks';
+    let sql = `SELECT t.*, e.name as assignee_name, e.type as assignee_type 
+               FROM tasks t 
+               LEFT JOIN entities e ON t.assignee_id = e.id`;
     const params: string[] = [];
     
+    const conditions: string[] = [];
+    
     if (columnId) {
-      sql += ' WHERE column_id = $1';
+      conditions.push(`t.column_id = $1`);
       params.push(columnId);
     }
     
-    if (assigneeId && !columnId) {
-      sql += ' WHERE assignee_id = $1';
+    if (assigneeId && assigneeId !== 'all' && assigneeId !== 'unassigned') {
+      conditions.push(`t.assignee_id = $${params.length + 1}`);
       params.push(assigneeId);
-    } else if (assigneeId && columnId) {
-      sql += ' AND assignee_id = $2';
-      params.push(assigneeId);
+    } else if (assigneeId === 'unassigned') {
+      conditions.push(`t.assignee_id IS NULL`);
     }
 
-    sql += ' ORDER BY created_at DESC';
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    sql += ' ORDER BY t.created_at DESC';
 
     const result = await query(sql, params);
     

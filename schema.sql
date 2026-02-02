@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS entities (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Seed entities for task assignment
+INSERT INTO entities (id, name, type, metadata, status) VALUES
+  ('33333333-3333-3333-3333-333333333333', 'Waqas', 'human', '{"role": "Owner", "email": "vauquas@gmail.com"}', 'active'),
+  ('22222222-2222-2222-2222-222222222222', 'Orion', 'agent', '{"role": "AI Assistant", "model": "minimax-m2.1:cloud"}', 'active')
+ON CONFLICT (id) DO NOTHING;
+
 -- Tasks Table with Kanban States
 CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

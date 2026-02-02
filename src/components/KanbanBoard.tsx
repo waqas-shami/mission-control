@@ -14,7 +14,9 @@ import {
   Stack,
   ActionIcon,
   Menu,
-  Tooltip
+  Tooltip,
+  Avatar,
+  Divider
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
@@ -38,7 +40,9 @@ import {
   IconEdit,
   IconTrash,
   IconClock,
-  IconRecycle
+  IconRecycle,
+  IconUser,
+  IconUsers
 } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import type { Task, TaskColumn } from '@/types';
@@ -59,8 +63,56 @@ const PRIORITY_COLORS: Record<string, string> = {
   critical: 'red',
 };
 
+// Entity type for assignees
+interface Entity {
+  id: string;
+  name: string;
+  type: 'human' | 'agent' | 'system';
+  metadata: Record<string, unknown>;
+}
+
+// Get initials from name
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+// Get avatar color based on entity type
+function getAvatarColor(type: string): string {
+  switch (type) {
+    case 'human':
+      return 'blue';
+    case 'agent':
+      return 'violet';
+    default:
+      return 'gray';
+  }
+}
+
+// Assignee Badge Component
+function AssigneeBadge({ entity }: { entity?: Entity }) {
+  if (!entity) return null;
+
+  return (
+    <Tooltip label={entity.type === 'agent' ? 'AI Assistant' : 'Human'}>
+      <Avatar
+        size="sm"
+        radius="xl"
+        color={getAvatarColor(entity.type)}
+        style={{ cursor: 'default' }}
+      >
+        {getInitials(entity.name)}
+      </Avatar>
+    </Tooltip>
+  );
+}
+
 // Draggable Task Card
-function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Task) => void; onDelete: (id: string) => void }) {
+function DraggableTask({ task, onEdit, onDelete, entities }: { task: Task; onEdit: (t: Task) => void; onDelete: (id: string) => void; entities: Entity[] }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
   });
@@ -159,13 +211,15 @@ function KanbanColumn({
   tasks,
   onAdd,
   onEdit,
-  onDelete
+  onDelete,
+  entities
 }: {
   column: { id: TaskColumn; title: string; color: string };
   tasks: Task[];
   onAdd: (columnId: TaskColumn) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  entities: Entity[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
@@ -208,6 +262,7 @@ function KanbanColumn({
           task={task}
           onEdit={onEdit}
           onDelete={onDelete}
+          entities={entities}
         />
       ))}
 
@@ -222,9 +277,11 @@ function KanbanColumn({
 
 export function KanbanBoard() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [entities, setEntities] = useState<Entity[]>([]);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [modalOpened, { open: openModal, close: closeModal }] = useDisclosure(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -232,6 +289,7 @@ export function KanbanBoard() {
     priority: 'medium',
     due_date: '',
     tags: '',
+    assignee_id: '',
     is_recurring: false,
   });
 
@@ -240,16 +298,37 @@ export function KanbanBoard() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Fetch entities for assignees
+  const fetchEntities = useCallback(async () => {
+    try {
+      const res = await fetch('/api/entities');
+      if (!res.ok) throw new Error('Failed to fetch entities');
+      const data = await res.json();
+      setEntities(data);
+    } catch (error) {
+      console.error('Failed to fetch entities:', error);
+    }
+  }, []);
+
+  // Fetch tasks with optional assignee filter
   const fetchTasks = useCallback(async () => {
     try {
-      const res = await fetch('/api/tasks');
+      let url = '/api/tasks';
+      if (assigneeFilter !== 'all') {
+        url += `?assignee_id=${assigneeFilter}`;
+      }
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Failed to fetch tasks');
       const data = await res.json();
       setTasks(data);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
     }
-  }, []);
+  }, [assigneeFilter]);
+
+  useEffect(() => {
+    fetchEntities();
+  }, [fetchEntities]);
 
   useEffect(() => {
     fetchTasks();
@@ -382,6 +461,7 @@ export function KanbanBoard() {
       priority: 'medium',
       due_date: '',
       tags: '',
+      assignee_id: '',
       is_recurring: false,
     });
     openModal();
@@ -396,6 +476,7 @@ export function KanbanBoard() {
       priority: task.priority,
       due_date: task.due_date?.split('T')[0] || '',
       tags: task.tags.join(', '),
+      assignee_id: task.assignee_id || '',
       is_recurring: task.is_recurring,
     });
     openModal();
@@ -427,6 +508,7 @@ export function KanbanBoard() {
       priority: formData.priority,
       due_date: formData.due_date || null,
       tags: formData.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      assignee_id: formData.assignee_id || null,
       is_recurring: formData.is_recurring,
     };
 
@@ -478,6 +560,45 @@ export function KanbanBoard() {
 
   return (
     <>
+      {/* Assignee Filter */}
+      <Paper mb="md" p="md" radius="md" withBorder style={{ backgroundColor: 'var(--mantine-color-body)' }}>
+        <Group justify="space-between">
+          <Group gap="xs">
+            <IconUsers size={18} style={{ color: 'var(--mantine-color-dimmed)' }} />
+            <Text size="sm" fw={500} c="dimmed">Filter by Assignee:</Text>
+            <Select
+              size="xs"
+              w={180}
+              data={[
+                { value: 'all', label: 'All Tasks' },
+                { value: 'unassigned', label: 'Unassigned' },
+                ...entities.map((e) => ({
+                  value: e.id,
+                  label: e.type === 'agent' ? `🤖 ${e.name}` : `👤 ${e.name}`
+                }))
+              ]}
+              value={assigneeFilter}
+              onChange={(value) => {
+                setAssigneeFilter(value || 'all');
+              }}
+              placeholder="Select assignee"
+            />
+            {assigneeFilter !== 'all' && (
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={() => setAssigneeFilter('all')}
+              >
+                Clear Filter
+              </Button>
+            )}
+          </Group>
+          <Text size="xs" c="dimmed">
+            Showing {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+          </Text>
+        </Group>
+      </Paper>
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -501,6 +622,7 @@ export function KanbanBoard() {
               onAdd={handleAdd}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              entities={entities}
             />
           ))}
         </div>
@@ -574,6 +696,20 @@ export function KanbanBoard() {
                 onChange={(value) => setFormData({ ...formData, priority: value || 'medium' })}
               />
             </Group>
+            <Select
+              label="Assignee"
+              placeholder="Select assignee"
+              data={[
+                { value: '', label: 'Unassigned' },
+                ...entities.map((e) => ({
+                  value: e.id,
+                  label: e.type === 'agent' ? `🤖 ${e.name}` : `👤 ${e.name}`
+                }))
+              ]}
+              value={formData.assignee_id}
+              onChange={(value) => setFormData({ ...formData, assignee_id: value || '' })}
+              clearable
+            />
             <TextInput
               label="Due Date"
               type="date"
