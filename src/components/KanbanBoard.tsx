@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Paper, 
-  Text, 
-  Badge, 
-  Group, 
-  Button, 
-  Modal, 
-  TextInput, 
-  Select, 
+import {
+  Paper,
+  Text,
+  Badge,
+  Group,
+  Button,
+  Modal,
+  TextInput,
+  Select,
   Textarea,
   Stack,
   ActionIcon,
@@ -17,9 +17,9 @@ import {
   Tooltip
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { 
-  DndContext, 
-  DragOverlay, 
+import {
+  DndContext,
+  DragOverlay,
   closestCorners,
   KeyboardSensor,
   PointerSensor,
@@ -32,10 +32,10 @@ import {
   useDroppable
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { 
-  IconPlus, 
-  IconDots, 
-  IconEdit, 
+import {
+  IconPlus,
+  IconDots,
+  IconEdit,
   IconTrash,
   IconClock,
   IconRecycle
@@ -110,8 +110,8 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
             <Menu.Item leftSection={<IconEdit size={14} />} onClick={() => onEdit(task)}>
               Edit
             </Menu.Item>
-            <Menu.Item 
-              leftSection={<IconTrash size={14} />} 
+            <Menu.Item
+              leftSection={<IconTrash size={14} />}
               color="red"
               onClick={() => onDelete(task.id)}
             >
@@ -120,17 +120,17 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
           </Menu.Dropdown>
         </Menu>
       </Group>
-      
+
       <Text size="sm" fw={500} mb="xs" lineClamp={2}>
         {task.title}
       </Text>
-      
+
       {task.description && (
         <Text size="xs" c="dimmed" mb="xs" lineClamp={2}>
           {task.description}
         </Text>
       )}
-      
+
       {task.due_date && (
         <Group gap={4} mt="xs">
           <IconClock size={12} color="var(--mantine-color-dimmed)" />
@@ -144,14 +144,14 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
 }
 
 // Droppable Column
-function KanbanColumn({ 
-  column, 
-  tasks, 
-  onAdd, 
-  onEdit, 
-  onDelete 
-}: { 
-  column: { id: TaskColumn; title: string; color: string }; 
+function KanbanColumn({
+  column,
+  tasks,
+  onAdd,
+  onEdit,
+  onDelete
+}: {
+  column: { id: TaskColumn; title: string; color: string };
   tasks: Task[];
   onAdd: (columnId: TaskColumn) => void;
   onEdit: (task: Task) => void;
@@ -165,11 +165,15 @@ function KanbanColumn({
       style={{
         flex: '1 1 0',
         minHeight: 400,
-        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-        border: isOver ? '1px solid var(--mantine-color-blue-5)' : '1px solid var(--mantine-color-dark-3)',
+        backgroundColor: isOver
+          ? 'var(--mantine-color-blue-light)'
+          : 'light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8))',
+        border: isOver
+          ? '2px dashed var(--mantine-color-blue-filled)'
+          : '1px solid transparent', // Keep transparent border to prevent layout jump
         borderRadius: 'var(--mantine-radius-md)',
         padding: '8px',
-        transition: 'background-color 0.15s ease, border-color 0.15s ease',
+        transition: 'background-color 0.2s ease, border-color 0.2s ease',
       }}
     >
       <Group justify="space-between" mb="md">
@@ -179,24 +183,24 @@ function KanbanColumn({
             {tasks.length}
           </Badge>
         </Group>
-        <ActionIcon 
-          variant="subtle" 
+        <ActionIcon
+          variant="subtle"
           size="sm"
           onClick={() => onAdd(column.id)}
         >
           <IconPlus size={16} />
         </ActionIcon>
       </Group>
-      
+
       {tasks.map((task) => (
-        <DraggableTask 
-          key={task.id} 
-          task={task} 
+        <DraggableTask
+          key={task.id}
+          task={task}
           onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}
-      
+
       {tasks.length === 0 && (
         <Text size="xs" c="dimmed" ta="center" py="xl" style={{ opacity: 0.5 }}>
           Drop tasks here
@@ -270,7 +274,7 @@ export function KanbanBoard() {
     });
 
     ws.on('task:moved', (data: { id: string; column_id: TaskColumn }) => {
-      setTasks(prev => prev.map(t => 
+      setTasks(prev => prev.map(t =>
         t.id === data.id ? { ...t, column_id: data.column_id } : t
       ));
     });
@@ -333,12 +337,12 @@ export function KanbanBoard() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: activeId, column_id: newColumn }),
           });
-          
+
           if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.error || 'Failed to update');
           }
-          
+
           notifications.show({
             title: 'Task moved',
             message: `"${activeTask.title}" moved to ${targetColumn.title}`,
@@ -389,7 +393,7 @@ export function KanbanBoard() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this task?')) return;
-    
+
     try {
       await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
       setTasks((prev) => prev.filter((t) => t.id !== id));
@@ -423,12 +427,12 @@ export function KanbanBoard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingTask.id, ...taskData }),
         });
-        
+
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.error || 'Failed to update');
         }
-        
+
         const updated = await res.json();
         setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? updated : t)));
         notifications.show({ title: 'Task updated', message: 'Changes saved successfully', color: 'green' });
@@ -438,12 +442,12 @@ export function KanbanBoard() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(taskData),
         });
-        
+
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.error || 'Failed to create');
         }
-        
+
         const created = await res.json();
         setTasks((prev) => [...prev, created]);
         notifications.show({ title: 'Task created', message: 'New task added to the board', color: 'green' });
@@ -451,15 +455,15 @@ export function KanbanBoard() {
       closeModal();
     } catch (error) {
       console.error('Failed to save task:', error);
-      notifications.show({ 
-        title: 'Error', 
-        message: error instanceof Error ? error.message : 'Failed to save task', 
-        color: 'red' 
+      notifications.show({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Failed to save task',
+        color: 'red'
       });
     }
   };
 
-  const getTasksByColumn = (columnId: TaskColumn) => 
+  const getTasksByColumn = (columnId: TaskColumn) =>
     tasks.filter((t) => t.column_id === columnId);
 
   return (
@@ -471,8 +475,8 @@ export function KanbanBoard() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           gap: '8px',
           paddingBottom: '16px',
           width: '100%',
@@ -493,9 +497,9 @@ export function KanbanBoard() {
 
         <DragOverlay>
           {activeTask ? (
-            <Paper 
-              p="sm" 
-              radius="md" 
+            <Paper
+              p="sm"
+              radius="md"
               withBorder
               shadow="none"
               style={{
@@ -519,9 +523,9 @@ export function KanbanBoard() {
         </DragOverlay>
       </DndContext>
 
-      <Modal 
-        opened={modalOpened} 
-        onClose={closeModal} 
+      <Modal
+        opened={modalOpened}
+        onClose={closeModal}
         title={editingTask ? 'Edit Task' : 'New Task'}
         size="md"
       >
