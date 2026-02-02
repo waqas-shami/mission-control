@@ -1,6 +1,12 @@
 -- Mission Control Database Schema
 -- PostgreSQL Schema for Mission Control Command Center
 
+-- Clear existing data for fresh start
+TRUNCATE TABLE activity_log CASCADE;
+TRUNCATE TABLE tasks CASCADE;
+TRUNCATE TABLE instructions CASCADE;
+TRUNCATE TABLE artifacts CASCADE;
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
