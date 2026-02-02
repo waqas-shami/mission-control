@@ -66,8 +66,8 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
   });
 
   const style = {
-    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.9 : 1,
+    transform: undefined, // Prevent original item from moving
+    opacity: isDragging ? 0 : 1, // Hide original item completely while dragging
     cursor: 'grab',
   };
 
@@ -505,13 +505,9 @@ export function KanbanBoard() {
                 filter: 'none !important',
                 WebkitBoxShadow: 'none !important',
                 MozBoxShadow: 'none !important',
-                transform: 'translate(-50%, -50%)',
-                position: 'fixed',
-                left: '50%',
-                top: '50%',
-                width: 200,
-                pointerEvents: 'none',
-                zIndex: 9999,
+                // Remove fixed positioning hacks that break dnd-kit
+                width: 280, // Match column width roughly or use fixed width
+                cursor: 'grabbing',
               }}
             >
               <Badge size="xs" color={PRIORITY_COLORS[activeTask.priority]} variant="light" mb="xs">
