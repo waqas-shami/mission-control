@@ -74,7 +74,7 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
   return (
     <Paper
       ref={setNodeRef}
-      style={{ ...style, boxShadow: 'none !important' }}
+      style={{ ...style, boxShadow: 'none !important', cursor: 'pointer' }}
       {...listeners}
       {...attributes}
       p="sm"
@@ -83,6 +83,7 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
       mb="xs"
       shadow="none"
       className="kanban-card"
+      onClick={() => onEdit(task)}
     >
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
@@ -102,7 +103,12 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
         </Group>
         <Menu position="bottom-end" shadow="md">
           <Menu.Target>
-            <ActionIcon variant="subtle" size="sm" onPointerDown={(e) => e.stopPropagation()}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()} // Prevent opening the detailed view
+            >
               <IconDots size={14} />
             </ActionIcon>
           </Menu.Target>
@@ -125,21 +131,25 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
         {task.title}
       </Text>
 
-      {task.description && (
-        <Text size="xs" c="dimmed" mb="xs" lineClamp={2}>
-          {task.description}
-        </Text>
-      )}
-
-      {task.due_date && (
-        <Group gap={4} mt="xs">
-          <IconClock size={12} color="var(--mantine-color-dimmed)" />
-          <Text size="xs" c="dimmed">
-            {new Date(task.due_date).toLocaleDateString()}
+      {
+        task.description && (
+          <Text size="xs" c="dimmed" mb="xs" lineClamp={2}>
+            {task.description}
           </Text>
-        </Group>
-      )}
-    </Paper>
+        )
+      }
+
+      {
+        task.due_date && (
+          <Group gap={4} mt="xs">
+            <IconClock size={12} color="var(--mantine-color-dimmed)" />
+            <Text size="xs" c="dimmed">
+              {new Date(task.due_date).toLocaleDateString()}
+            </Text>
+          </Group>
+        )
+      }
+    </Paper >
   );
 }
 
@@ -527,7 +537,7 @@ export function KanbanBoard() {
         opened={modalOpened}
         onClose={closeModal}
         title={editingTask ? 'Edit Task' : 'New Task'}
-        size="md"
+        size="lg"
       >
         <form onSubmit={handleSubmit}>
           <Stack>
