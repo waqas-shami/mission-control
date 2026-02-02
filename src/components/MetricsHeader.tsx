@@ -127,7 +127,7 @@ export function MetricsHeader({ onRefresh }: MetricsHeaderProps) {
       </div>
 
       {metrics && metrics.totalInventory > 0 && (
-        <Paper mt="md" p="sm" radius="md" bg="dark.6">
+        <Paper mt="md" p="sm" radius="md" withBorder>
           <Group justify="space-between" mb="xs">
             <Text size="xs" c="dimmed" tt="uppercase" fw={600}>Pipeline Distribution</Text>
             <Text size="xs" c="dimmed">{metrics.totalInventory} total tasks</Text>

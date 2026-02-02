@@ -35,6 +35,32 @@ a {
   text-decoration: none;
 }
 
+/* Remove all shadows during drag operations */
+.kanban-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kanban-card:hover {
+  box-shadow: none !important;
+}
+
+/* Aggressive shadow removal for dnd-kit drag */
+[data-dndkit-dragging="true"] {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.mantine-Paper-root {
+  box-shadow: none !important;
+}
+
+/* Override any shadow that appears during drag */
+* {
+  -webkit-box-shadow: none !important;
+  -moz-box-shadow: none !important;
+  box-shadow: none !important;
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;

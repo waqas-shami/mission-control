@@ -74,7 +74,7 @@ function DraggableTask({ task, onEdit, onDelete }: { task: Task; onEdit: (t: Tas
   return (
     <Paper
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, boxShadow: 'none !important' }}
       {...listeners}
       {...attributes}
       p="sm"
@@ -501,7 +501,10 @@ export function KanbanBoard() {
               style={{
                 backgroundColor: 'var(--mantine-color-body)',
                 opacity: 0.95,
-                boxShadow: 'none',
+                boxShadow: 'none !important',
+                filter: 'none !important',
+                WebkitBoxShadow: 'none !important',
+                MozBoxShadow: 'none !important',
                 transform: 'translate(-50%, -50%)',
                 position: 'fixed',
                 left: '50%',
